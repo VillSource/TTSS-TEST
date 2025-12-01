@@ -29,19 +29,55 @@ public class DetectingChurningsJob : BackgroundService
                     .ExecuteUpdateAsync(churnings => churnings.SetProperty(churning => churning.IsValid, false), stoppingToken);
                 await _db.SaveChangesAsync(stoppingToken);
 
-                var lastLoginOfChurning = now.Date.AddDays(-30);
-                var noLoginPlayers = _db.Activities.AsNoTracking()
+                var timespanForNoLongerPlay = TimeSpan.FromDays(30);
+                var lastLoginOfChurningCriteria = now.Date - timespanForNoLongerPlay;
+                var noLoginPlayers = _db.Activities
                     .OfType<LoginEvent>()
                     .GroupBy(player => player.UserId)
-                    .Where(players => !players.Any(player=>player.Timestamp>lastLoginOfChurning))
+                    .Where(players => !players.Any(player=>player.Timestamp>lastLoginOfChurningCriteria))
                     .Select(player => new Churning
                     {
                         DetecedTime = now,
                         UserId = player.Key,
-                        ChurningReason = "Have No Login in 30 days!",
+                        ChurningReason = $"Have No Login in for {timespanForNoLongerPlay.TotalDays} days!",
                         IsValid = true
                     });
+
+                var timeSpanForCriteria = TimeSpan.FromDays(7);
+                var activityInTimeCriteria = _db.Activities
+                    .Where(player => player.Timestamp >= now - timeSpanForCriteria)
+                    .Where(player => player.Timestamp <= now);
+
+                var playersWhoBuyItems = activityInTimeCriteria
+                    .OfType<PurchasedEvent>()
+                    .GroupBy(player => player.UserId)
+                    .Where(players => players.Any())
+                    .Select(players => players.Key);
+
+                var playersWhoCompleteAchievment = activityInTimeCriteria
+                    .OfType<AchievementCompletedEvent>()
+                    .GroupBy(player => player.UserId)
+                    .Where(players => players.Any())
+                    .Select(players => players.Key);
+
+                var lowPlayTimeCritreria = TimeSpan.FromHours(1);
+                var whoHaveNoPayAndNoAchievmentInCriteriaTime = activityInTimeCriteria
+                    .OfType<LogoutEvent>()
+                    .GroupBy(player => player.UserId)
+                    .Where(players => players.Sum(p=>p.DurationInSeconds) < lowPlayTimeCritreria.TotalSeconds)
+                    .Where(player => !playersWhoBuyItems.Contains(player.Key))
+                    .Where(player => !playersWhoCompleteAchievment.Contains(player.Key))
+                    .Select(players => new Churning
+                    {
+                        DetecedTime = now,
+                        UserId = players.Key,
+                        ChurningReason = $"Player Have {TimeSpan.FromSeconds(players.Sum(p=>p.DurationInSeconds)).TotalMinutes} Minutes Screen Time and No Purchased and No Achievment complete In {timeSpanForCriteria.TotalDays} Days!",
+                        IsValid = true
+                    });
+
+                
                 await _db.AddRangeAsync(noLoginPlayers, stoppingToken);
+                await _db.AddRangeAsync(whoHaveNoPayAndNoAchievmentInCriteriaTime, stoppingToken);
                 await _db.SaveChangesAsync(stoppingToken);
             }
 
