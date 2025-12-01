@@ -20,8 +20,4 @@
     <ProjectReference Include="..\TTSS-Game-Analysis.ServiceDefaults\TTSS-Game-Analysis.ServiceDefaults.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Endpoints\Players\Churnings\" />
-  </ItemGroup>
-
 </Project>
