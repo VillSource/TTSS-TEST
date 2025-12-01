@@ -1,4 +1,6 @@
-﻿namespace TTSS.Game.Analysis.Api.Services;
+﻿using TTSS.Game.Analysis.Api.HostServices;
+
+namespace TTSS.Game.Analysis.Api.Services;
 
 public static class ServicesDIExtension
 {
@@ -6,5 +8,7 @@ public static class ServicesDIExtension
     {
         services.AddScoped<EventLogService>();
         services.AddScoped<ServerTimeProvider>();
+
+        services.AddHostedService<DetectingChurningsJob>();
     }
 }

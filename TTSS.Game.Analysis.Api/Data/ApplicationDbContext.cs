@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using TTSS.Game.Analysis.Api.Entities.Churning;
 using TTSS.Game.Analysis.Api.Entities.Event;
 
 namespace TTSS.Game.Analysis.Api.Data;
@@ -6,10 +7,17 @@ namespace TTSS.Game.Analysis.Api.Data;
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> opt) : DbContext(opt)
 {
     public DbSet<ActivityEventBase> Activities { get; init; }
+    public DbSet<Churning> Churnings { get; init; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var churning = modelBuilder.Entity<Churning>();
+        churning.ToTable("churning_list");
+        churning.HasKey(c => c.Id);
+        churning.Property(c => c.UserId).IsRequired();
+        churning.Property(c => c.DetecedTime).IsRequired();
 
         var activityEventBase = modelBuilder.Entity<ActivityEventBase>();
         activityEventBase.ToTable("activity_event_log");
@@ -45,6 +53,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> opt) : 
                 entry.Entity.Timestamp = DateTime.UtcNow;
             entry.Entity.EventName = entry.Entity.GetType().Name;
         }
+
+        foreach (var entry in ChangeTracker.Entries<Churning>()
+            .Where(e => e.State == EntityState.Added))
+        {
+            if (entry.Entity.DetecedTime == default)
+                entry.Entity.DetecedTime = DateTime.UtcNow;
+        }
+
     }
 
 }
