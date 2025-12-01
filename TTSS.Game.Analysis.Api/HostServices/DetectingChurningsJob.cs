@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using TTSS.Game.Analysis.Api.Data;
 using TTSS.Game.Analysis.Api.Entities.Churning;
@@ -23,42 +24,16 @@ public class DetectingChurningsJob : BackgroundService
             using (var scope = _scopeFactory.CreateScope())
             {
                 var _db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var _emailSender = scope.ServiceProvider.GetService<IEmailSender>();
 
-                await _db.Churnings
-                    .Where(churning => churning.IsValid)
-                    .ExecuteUpdateAsync(churnings => churnings.SetProperty(churning => churning.IsValid, false), stoppingToken);
-                await _db.SaveChangesAsync(stoppingToken);
+                await ResetChurningList(_db, stoppingToken);
 
-                var timespanForNoLongerPlay = TimeSpan.FromDays(30);
-                var lastLoginOfChurningCriteria = now.Date - timespanForNoLongerPlay;
-                var noLoginPlayers = _db.Activities
-                    .OfType<LoginEvent>()
-                    .GroupBy(player => player.UserId)
-                    .Where(players => !players.Any(player=>player.Timestamp>lastLoginOfChurningCriteria))
-                    .Select(player => new Churning
-                    {
-                        DetecedTime = now,
-                        UserId = player.Key,
-                        ChurningReason = $"Have No Login in for {timespanForNoLongerPlay.TotalDays} days!",
-                        IsValid = true
-                    });
+                var notActivePlayers = GetNotActiveUser(_db, now);
 
                 var timeSpanForCriteria = TimeSpan.FromDays(7);
-                var activityInTimeCriteria = _db.Activities
-                    .Where(player => player.Timestamp >= now - timeSpanForCriteria)
-                    .Where(player => player.Timestamp <= now);
-
-                var playersWhoBuyItems = activityInTimeCriteria
-                    .OfType<PurchasedEvent>()
-                    .GroupBy(player => player.UserId)
-                    .Where(players => players.Any())
-                    .Select(players => players.Key);
-
-                var playersWhoCompleteAchievment = activityInTimeCriteria
-                    .OfType<AchievementCompletedEvent>()
-                    .GroupBy(player => player.UserId)
-                    .Where(players => players.Any())
-                    .Select(players => players.Key);
+                var activityInTimeCriteria = GetActivityInTimeCriteria(_db, now, timeSpanForCriteria);
+                var playersWhoBuyItems = GetPlayersWhoBuyItems(activityInTimeCriteria);
+                var playersWhoCompleteAchievment = GetPlayersWhoCompleteAchievment(activityInTimeCriteria);
 
                 var lowPlayTimeCritreria = TimeSpan.FromHours(1);
                 var whoHaveNoPayAndNoAchievmentInCriteriaTime = activityInTimeCriteria
@@ -76,12 +51,77 @@ public class DetectingChurningsJob : BackgroundService
                     });
 
                 
-                await _db.AddRangeAsync(noLoginPlayers, stoppingToken);
+                await _db.AddRangeAsync(notActivePlayers, stoppingToken);
                 await _db.AddRangeAsync(whoHaveNoPayAndNoAchievmentInCriteriaTime, stoppingToken);
                 await _db.SaveChangesAsync(stoppingToken);
+
+                if (_emailSender is not null)
+                    await _emailSender.SendEmailAsync(GetAdminEmailList(), "Churnning List Report", GetHtmlMailContent());
             }
 
             await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
         }
+    }
+
+    private async Task ResetChurningList(ApplicationDbContext _db, CancellationToken stoppingToken)
+    {
+        await _db.Churnings
+                    .Where(churning => churning.IsValid)
+                    .ExecuteUpdateAsync(churnings => churnings.SetProperty(churning => churning.IsValid, false), stoppingToken);
+        await _db.SaveChangesAsync(stoppingToken);
+    }
+
+    private IQueryable<ActivityEventBase> GetActivityInTimeCriteria(ApplicationDbContext _db, DateTime now, TimeSpan timeSpanForCriteria)
+    {
+        return _db.Activities
+            .Where(player => player.Timestamp >= now - timeSpanForCriteria)
+            .Where(player => player.Timestamp <= now);
+    }
+
+    private IQueryable<string> GetPlayersWhoBuyItems(IQueryable<ActivityEventBase> activityInTimeCriteria)
+    {
+        return activityInTimeCriteria
+            .OfType<PurchasedEvent>()
+            .GroupBy(player => player.UserId)
+            .Where(players => players.Any())
+            .Select(players => players.Key);
+
+    }
+    private IQueryable<string> GetPlayersWhoCompleteAchievment(IQueryable<ActivityEventBase> activityInTimeCriteria)
+    {
+        return activityInTimeCriteria
+            .OfType<AchievementCompletedEvent>()
+            .GroupBy(player => player.UserId)
+            .Where(players => players.Any())
+            .Select(players => players.Key);
+    }
+
+    private IQueryable<Churning> GetNotActiveUser(ApplicationDbContext _db, DateTime now)
+    {
+        var timespanForNoLongerPlay = TimeSpan.FromDays(30);
+        var lastLoginOfChurningCriteria = now.Date - timespanForNoLongerPlay;
+        return _db.Activities
+            .OfType<LoginEvent>()
+            .GroupBy(player => player.UserId)
+            .Where(players => !players.Any(player => player.Timestamp > lastLoginOfChurningCriteria))
+            .Select(player => new Churning
+            {
+                DetecedTime = now,
+                UserId = player.Key,
+                ChurningReason = $"Have No Login in for {timespanForNoLongerPlay.TotalDays} days!",
+                IsValid = true
+            });
+    }
+
+
+    private string GetAdminEmailList()
+    {
+        return "admin@ttss.game";
+    }
+    private string GetHtmlMailContent()
+    {
+        return """
+            Please Check Chunning list report in your admin portal.
+            """;
     }
 }
