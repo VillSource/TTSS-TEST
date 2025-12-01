@@ -2,5 +2,5 @@
 
 public class ActivitiesRequest
 {
-    public int FromNDayAgo { get; set; }
+    public int? FromNDayAgo { get; set; }
 }

@@ -17,6 +17,14 @@ builder.Services.AddOpenApi();
 builder.Services.AddFastEndpoints();
 builder.Services.AddAppServices();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ALL", policy => policy
+        .AllowAnyOrigin()
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
+
 string publicKeyPem = builder.Configuration.GetSection("Authen:VerifyKey").Value 
     ?? throw new Exception("Authentication Key is Require in Configuration");
 RSA rsa = RSA.Create();
@@ -46,6 +54,7 @@ app.MapDefaultEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseCors("ALL");
     app.MapOpenApi();
     app.MapScalarApiReference();
     app.MapGet("/", () => Results.Redirect("/scalar")).ExcludeFromDescription();

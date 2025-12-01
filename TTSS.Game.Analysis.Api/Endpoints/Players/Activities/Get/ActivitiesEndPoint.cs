@@ -27,7 +27,7 @@ public class ActivitiesEndPoint : Ep.Req<ActivitiesRequest>.Res<List<ActivitiesR
     public override async Task HandleAsync(ActivitiesRequest request, CancellationToken ct)
     {
         var now = _timeProvider.UtcNow();
-        var startPoint = now - TimeSpan.FromDays(request.FromNDayAgo);
+        var startPoint = now - TimeSpan.FromDays(request.FromNDayAgo.GetValueOrDefault());
 
         var x = _db.Activities.AsNoTracking()
             .Where(@event => @event.Timestamp >= startPoint)
