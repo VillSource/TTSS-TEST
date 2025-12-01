@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/aspire/">
+    <Project Path="TTSS-Game-Analysis.AppHost/TTSS-Game-Analysis.AppHost.csproj" />
+    <Project Path="TTSS-Game-Analysis.ServiceDefaults/TTSS-Game-Analysis.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="TTSS.Game.Analysis.Api/TTSS.Game.Analysis.Api.csproj" />
+  </Folder>
+</Solution>
