@@ -3,7 +3,7 @@ using TTSS.Game.Analysis.Api.Entities.Event;
 
 namespace TTSS.Game.Analysis.Api.Data;
 
-public class ActivityLogDataContext(DbContextOptions<ActivityLogDataContext> opt) : DbContext(opt)
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> opt) : DbContext(opt)
 {
     public DbSet<ActivityEventBase> Activities { get; init; }
 
